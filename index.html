@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DigitVerse AI Studio — Deep Neural Network Classifier & Conditional VAE Generative Studio</title>
+  <meta name="description" content="State-of-the-art interactive deep learning studio for hand-drawn digits: Real-time CNN digit classification, 2D latent space exploration, Conditional VAE digit generation, style transfer, and neural network architecture visualizer.">
+  <link rel="stylesheet" href="css/style.css">
+  <!-- TensorFlow.js CDN for optional accelerated WebGL backend -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- Navigation Bar -->
+    <header class="navbar">
+      <a href="#" class="brand" id="brand-logo">
+        <div class="brand-icon">✨</div>
+        <div class="brand-text">
+          <h1>DigitVerse AI Studio</h1>
+          <span>Deep CNN & Conditional VAE</span>
+        </div>
+      </a>
+
+      <!-- Mode Switcher Tabs -->
+      <nav class="nav-tabs" role="tablist">
+        <button class="tab-btn active" data-tab="tab-classifier" id="tab-btn-classifier" role="tab" aria-selected="true">
+          <span>✍️</span> Draw & Classify
+        </button>
+        <button class="tab-btn" data-tab="tab-generative" id="tab-btn-generative" role="tab" aria-selected="false">
+          <span>🎨</span> Generative Studio
+          <span class="badge-pill">CVAE</span>
+        </button>
+        <button class="tab-btn" data-tab="tab-architecture" id="tab-btn-architecture" role="tab" aria-selected="false">
+          <span>🧠</span> Architecture & Math
+        </button>
+        <button class="tab-btn" data-tab="tab-trainer" id="tab-btn-trainer" role="tab" aria-selected="false">
+          <span>🚀</span> Live Trainer
+        </button>
+      </nav>
+
+      <!-- Nav Actions -->
+      <div class="nav-actions">
+        <div class="status-indicator" id="model-status">
+          <span class="status-dot"></span>
+          <span id="status-text">Neural Engine Ready</span>
+        </div>
+        <button class="btn-icon" id="btn-sound-toggle" title="Toggle Synthesizer Sound FX">
+          <span id="sound-icon">🔊</span>
+        </button>
+        <button class="btn-icon" id="btn-theme-toggle" title="Toggle Light/Dark Theme">
+          <span id="theme-icon">🌙</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- =========================================================================
+         TAB 1: CLASSIFIER STUDIO
+         ========================================================================= -->
+    <main class="tab-content active" id="tab-classifier">
+      <div class="classifier-grid">
+        
+        <!-- Left Panel: Drawing Canvas & Tools -->
+        <section class="glass-panel" aria-labelledby="canvas-heading">
+          <div class="panel-header">
+            <div class="panel-title">
+              <div class="icon-badge">✍️</div>
+              <h2 id="canvas-heading">Handwriting Canvas</h2>
+            </div>
+            <span class="badge-pill" id="canvas-status-badge">Live Normalization</span>
+          </div>
+
+          <!-- Drawing Canvas Wrapper -->
+          <div class="canvas-wrapper">
+            <canvas id="drawing-canvas"></canvas>
+            <div class="canvas-grid-overlay"></div>
+          </div>
+
+          <!-- Canvas Controls Toolbar -->
+          <div class="canvas-toolbar">
+            <div class="tool-group">
+              <button class="tool-btn active" id="tool-draw" title="Draw Pen (Shortcut: P or B)">
+                <span>✏️</span> Pen
+              </button>
+              <button class="tool-btn" id="tool-erase" title="Eraser (Shortcut: E or Right-Click Drag)">
+                <span>🧹</span> Erase
+              </button>
+            </div>
+
+            <div class="brush-slider-group">
+              <span>Size</span>
+              <input type="range" id="brush-size" min="10" max="38" value="22" title="Brush Size (Shortcut: [ / ])">
+            </div>
+
+            <div class="tool-group">
+              <button class="tool-btn" id="btn-undo" title="Undo Last Stroke (Ctrl+Z or Z)">↩️</button>
+              <button class="tool-btn" id="btn-invert" title="Invert Contrast (I)">🔄</button>
+              <button class="tool-btn" id="btn-clear" title="Clear Canvas (C / Delete)">🗑️ Clear</button>
+            </div>
+          </div>
+
+          <!-- Quick Test Presets -->
+          <div class="presets-strip">
+            <span class="presets-label">Quick Test MNIST Samples:</span>
+            <div class="presets-grid" id="presets-container">
+              <!-- Preset chips 0-9 injected dynamically -->
+            </div>
+          </div>
+
+          <!-- MNIST Preprocessing Preview -->
+          <div class="preproc-box">
+            <div class="preproc-canvas-wrap">
+              <canvas id="preproc-canvas"></canvas>
+            </div>
+            <div class="preproc-info">
+              <span class="preproc-title">MNIST Normalized Tensor (28×28)</span>
+              <span class="preproc-desc">Center-of-mass centering & 20×20 bounding box fit.</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Right Panel: Prediction & Activations -->
+        <section class="glass-panel" aria-labelledby="prediction-heading">
+          <div class="panel-header">
+            <div class="panel-title">
+              <div class="icon-badge">⚡</div>
+              <h2 id="prediction-heading">Neural Inference & Probabilities</h2>
+            </div>
+            <span class="badge-pill" id="inference-latency">~1.2 ms</span>
+          </div>
+
+          <!-- Top Prediction Hero Card -->
+          <div class="prediction-hero">
+            <div class="hero-left">
+              <span class="hero-tag">Predicted Digit</span>
+              <div class="hero-digit-display">
+                <span class="hero-digit" id="hero-digit">-</span>
+                <span class="hero-confidence" id="hero-confidence">0.0%</span>
+              </div>
+            </div>
+            <div class="hero-stats">
+              <div class="stat-item">
+                <span class="stat-val" id="stat-runnerup">-</span>
+                <span class="stat-lbl">Runner-Up</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-val" id="stat-margin">-</span>
+                <span class="stat-lbl">Entropy Margin</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Probability Distribution Bars (0 to 9) -->
+          <div class="prob-bars-container" id="prob-bars-list">
+            <!-- 10 rows generated dynamically -->
+          </div>
+
+          <!-- Convolutional Layer Activations -->
+          <div class="activation-section">
+            <div class="activation-header">
+              <h3>Conv2D Layer 1 Feature Maps (16 Filters)</h3>
+              <span class="badge-pill">Edge / Loop Detectors</span>
+            </div>
+            <div class="feature-maps-grid" id="feature-maps-container">
+              <!-- 16 feature chips generated dynamically -->
+            </div>
+          </div>
+
+          <!-- Transfer to Generative Studio Button -->
+          <button class="transfer-cta" id="btn-transfer-to-cvae">
+            <span>✨</span> Transfer Drawn Digit into CVAE Studio (Extract Latent Code)
+          </button>
+        </section>
+      </div>
+    </main>
+
+    <!-- =========================================================================
+         TAB 2: CVAE GENERATIVE STUDIO
+         ========================================================================= -->
+    <main class="tab-content" id="tab-generative">
+      <!-- Sub-tabs bar -->
+      <div class="subtab-bar" role="tablist">
+        <button class="subtab-btn active" data-subtab="subtab-explorer" id="subtab-btn-explorer">
+          <span>🎯</span> 2D Latent Space Explorer
+        </button>
+        <button class="subtab-btn" data-subtab="subtab-manifold" id="subtab-btn-manifold">
+          <span>🌐</span> 10×10 Manifold Grid
+        </button>
+        <button class="subtab-btn" data-subtab="subtab-morph" id="subtab-btn-morph">
+          <span>🔄</span> Digit Morphing & Trajectory
+        </button>
+        <button class="subtab-btn" data-subtab="subtab-style" id="subtab-btn-style">
+          <span>🪄</span> Style Disentanglement Transfer
+        </button>
+        <button class="subtab-btn" data-subtab="subtab-batch" id="subtab-btn-batch">
+          <span>🎲</span> Random Batch Generator
+        </button>
+      </div>
+
+      <!-- SUBTAB 1: 2D LATENT SPACE EXPLORER -->
+      <div class="subtab-view active" id="subtab-explorer">
+        <div class="generative-layout">
+          
+          <!-- Left: 2D Coordinate Canvas -->
+          <section class="glass-panel">
+            <div class="panel-header">
+              <div class="panel-title">
+                <div class="icon-badge">🎯</div>
+                <h2>Interactive Latent Plane [z₁, z₂]</h2>
+              </div>
+              <span class="badge-pill">Drag to Navigate</span>
+            </div>
+
+            <div class="latent-canvas-container">
+              <canvas id="latent-explorer-canvas"></canvas>
+              <span class="latent-axes-label latent-axis-x">z₁ (Slant / Width) →</span>
+              <span class="latent-axes-label latent-axis-y">↑ z₂ (Thickness / Loops)</span>
+            </div>
+
+            <div class="panel-header" style="margin-top: 0.5rem;">
+              <span class="presets-label">Select Target Digit (Condition y):</span>
+            </div>
+            <div class="digit-selector-row" id="target-digit-selector">
+              <!-- Digit buttons 0-9 generated dynamically -->
+            </div>
+          </section>
+
+          <!-- Right: Generated Digit Output & Style Controls -->
+          <section class="glass-panel">
+            <div class="panel-header">
+              <div class="panel-title">
+                <div class="icon-badge">🖼️</div>
+                <h2>CVAE Synthesized Output (p(x|z, y))</h2>
+              </div>
+              <span class="badge-pill" id="gen-z-coords">z: [0.00, 0.00]</span>
+            </div>
+
+            <div class="generated-display-card">
+              <div class="generated-viewport">
+                <canvas id="generated-preview-canvas"></canvas>
+              </div>
+
+              <div class="gen-controls-row">
+                <button class="btn-primary" id="btn-sample-noise">
+                  <span>🎲</span> Random Latent Sample
+                </button>
+                <button class="btn-secondary" id="btn-reset-origin">
+                  <span>📍</span> Reset to Origin [0, 0]
+                </button>
+                <button class="btn-secondary" id="btn-download-digit">
+                  <span>💾</span> Download Image
+                </button>
+              </div>
+            </div>
+
+            <!-- Style Modifiers -->
+            <div class="activation-section" style="border: none; padding-top: 0;">
+              <div class="activation-header">
+                <h3>Latent Coordinate Sliders</h3>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <span style="font-size: 0.85rem; color: var(--text-secondary);">z₁ (Slant & Axis Transformation):</span>
+                  <span id="slider-z1-val" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--secondary);">0.00</span>
+                </div>
+                <input type="range" id="slider-z1" min="-3.0" max="3.0" step="0.05" value="0.0" style="accent-color: var(--secondary); cursor: pointer;">
+
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 0.25rem;">
+                  <span style="font-size: 0.85rem; color: var(--text-secondary);">z₂ (Stroke Thickness & Curvature):</span>
+                  <span id="slider-z2-val" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--primary-light);">0.00</span>
+                </div>
+                <input type="range" id="slider-z2" min="-3.0" max="3.0" step="0.05" value="0.0" style="accent-color: var(--primary); cursor: pointer;">
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <!-- SUBTAB 2: 10x10 MANIFOLD GRID -->
+      <div class="subtab-view" id="subtab-manifold" style="display: none;">
+        <section class="glass-panel">
+          <div class="panel-header">
+            <div class="panel-title">
+              <div class="icon-badge">🌐</div>
+              <h2>Continuous Latent Manifold (10×10 Grid)</h2>
+            </div>
+            <div class="digit-selector-row" id="manifold-digit-selector"></div>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-secondary);">
+            Evaluates the decoder across a regular 2D grid in latent space from <code style="color: var(--secondary); font-family: var(--font-mono);">z₁ ∈ [-2.5, +2.5]</code> and <code style="color: var(--primary-light); font-family: var(--font-mono);">z₂ ∈ [-2.5, +2.5]</code>.
+          </p>
+          <div class="manifold-grid-wrap" id="manifold-grid-container">
+            <!-- 100 cells generated dynamically -->
+          </div>
+        </section>
+      </div>
+
+      <!-- SUBTAB 3: DIGIT MORPHING & TRAJECTORY -->
+      <div class="subtab-view" id="subtab-morph" style="display: none;">
+        <section class="glass-panel">
+          <div class="panel-header">
+            <div class="panel-title">
+              <div class="icon-badge">🔄</div>
+              <h2>Geodesic Digit Morphing & Latent Interpolation</h2>
+            </div>
+            <span class="badge-pill">Continuous Trajectory</span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 320px 1fr; gap: 1.5rem; align-items: center;">
+            <!-- Morph Viewport -->
+            <div class="generated-display-card">
+              <div class="generated-viewport" style="width: 200px; height: 200px;">
+                <canvas id="morph-viewport-canvas"></canvas>
+              </div>
+              <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <button class="btn-primary" id="btn-morph-play">
+                  <span id="morph-play-icon">▶️</span> Play Morph
+                </button>
+                <button class="btn-secondary" id="btn-morph-reverse">
+                  <span>🔀</span> Reverse
+                </button>
+              </div>
+            </div>
+
+            <!-- Morph Controls & Strip -->
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+              <div style="display: flex; gap: 1rem; align-items: center;">
+                <div style="flex: 1;">
+                  <label style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">Source Digit (Start):</label>
+                  <select id="morph-source-select" style="width: 100%; background: var(--surface-inner); color: #fff; border: 1px solid var(--border-subtle); padding: 0.5rem; border-radius: var(--radius-sm); font-family: var(--font-mono);">
+                    <!-- 0 to 9 -->
+                  </select>
+                </div>
+                <div style="font-size: 1.5rem; color: var(--accent); padding-top: 1rem;">➔</div>
+                <div style="flex: 1;">
+                  <label style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">Target Digit (End):</label>
+                  <select id="morph-target-select" style="width: 100%; background: var(--surface-inner); color: #fff; border: 1px solid var(--border-subtle); padding: 0.5rem; border-radius: var(--radius-sm); font-family: var(--font-mono);">
+                    <!-- 0 to 9 -->
+                  </select>
+                </div>
+              </div>
+
+              <!-- Morph Interpolation Scrubber -->
+              <div style="display: flex; flex-direction: column; gap: 0.35rem;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-secondary);">
+                  <span>Interpolation Factor (α):</span>
+                  <span id="morph-alpha-val" style="font-family: var(--font-mono); color: var(--secondary);">0%</span>
+                </div>
+                <input type="range" id="morph-scrubber" min="0" max="1" step="0.01" value="0" style="accent-color: var(--accent); cursor: pointer;">
+              </div>
+
+              <!-- Filmstrip -->
+              <div>
+                <span style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">Interpolation Filmstrip:</span>
+                <div class="morph-strip-container" id="morph-strip-container">
+                  <!-- 8 frame thumbnails -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- SUBTAB 4: STYLE TRANSFER -->
+      <div class="subtab-view" id="subtab-style" style="display: none;">
+        <section class="glass-panel">
+          <div class="panel-header">
+            <div class="panel-title">
+              <div class="icon-badge">🪄</div>
+              <h2>Zero-Shot Handwriting Style Transfer</h2>
+            </div>
+            <span class="badge-pill">Disentangled Representations</span>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-secondary);">
+            Encodes your drawn digit $x$ to extract handwriting style parameters $\mathbf{z}^* = \mu(x, y)$, then conditions the decoder $p(\mathbf{x}|\mathbf{z}^*, y)$ across all 10 digit classes to transfer your exact handwriting slant, thickness, and curve style!
+          </p>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 0.75rem; margin-top: 1rem;" id="style-transfer-grid">
+            <!-- 10 style transferred digit cards -->
+          </div>
+        </section>
+      </div>
+
+      <!-- SUBTAB 5: RANDOM BATCH GENERATOR -->
+      <div class="subtab-view" id="subtab-batch" style="display: none;">
+        <section class="glass-panel">
+          <div class="panel-header">
+            <div class="panel-title">
+              <div class="icon-badge">🎲</div>
+              <h2>Random Latent Synthesis Grid</h2>
+            </div>
+            <button class="btn-primary" id="btn-generate-batch">
+              <span>⚡</span> Generate New Batch
+            </button>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; background: #000; padding: 12px; border-radius: var(--radius-md); max-width: 680px; margin: 0 auto;" id="batch-grid-container">
+            <!-- 32 random digit chips -->
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <!-- =========================================================================
+         TAB 3: ARCHITECTURE & MATH GUIDE
+         ========================================================================= -->
+    <main class="tab-content" id="tab-architecture">
+      <div class="arch-grid">
+        
+        <!-- Card 1: CNN Classifier Architecture -->
+        <article class="arch-card">
+          <div class="panel-header">
+            <div class="panel-title">
+              <div class="icon-badge">⚡</div>
+              <h2>CNN Classifier Architecture</h2>
+            </div>
+            <span class="badge-pill">Discriminative</span>
+          </div>
+
+          <div class="math-equation-box">
+            $$P(y = k \mid \mathbf{x}) = \frac{\exp(z_k)}{\sum_{j=0}^{9} \exp(z_j)}$$
+            $$\mathcal{L}_{\text{CE}} = -\sum_{k=0}^{9} y_k \log \hat{y}_k$$
+          </div>
+
+          <div class="layer-pipeline">
+            <div class="layer-node">
+              <div class="layer-name"><span>📥</span> Input Image Tensor</div>
+              <div class="layer-shape">[28, 28, 1]</div>
+            </div>
+            <div class="layer-node">
+              <div class="layer-name"><span>🔍</span> Conv2D (16 filters, 3×3, ReLU)</div>
+              <div class="layer-shape">[28, 28, 16]</div>
+            </div>
+            <div class="layer-node">
+              <div class="layer-name"><span>🔽</span> MaxPooling2D (2×2 pool)</div>
+              <div class="layer-shape">[14, 14, 16]</div>
+            </div>
+            <div class="layer-node">
+              <div class="layer-name"><span>🔍</span> Conv2D (32 filters, 3×3, ReLU)</div>
+              <div class="layer-shape">[14, 14, 32]</div>
+            </div>
+            <div class="layer-node">
+              <div class="layer-name"><span>🔽</span> MaxPooling2D (2×2 pool)</div>
+              <div class="layer-shape">[7, 7, 32]</div>
+            </div>
+            <div class="layer-node">
+              <div class="layer-name"><span>📊</span> Dense Hidden (128 units, ReLU)</div>
+              <div class="layer-shape">[128]</div>
+            </div>
+            <div class="layer-node">
+              <div class="layer-name"><span>🎯</span> Softmax Output Layer</div>
+              <div class="layer-shape">[10 Classes]</div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Card 2: CVAE Generative Architecture -->
+        <article class="arch-card">
+          <div class="panel-header">
+            <div class="panel-title">
+              <div class="icon-badge">🎨</div>
+              <h2>Conditional VAE Architecture</h2>
+            </div>
+            <span class="badge-pill">Generative</span>
+          </div>
+
+          <div class="math-equation-box">
+            $$\mathcal{L}_{\text{CVAE}} = \mathbb{E}_{q_\phi(\mathbf{z}|\mathbf{x},y)}[\log p_\theta(\mathbf{x}|\mathbf{z},y)] - D_{\text{KL}}(q_\phi(\mathbf{z}|\mathbf{x},y) \parallel p(\mathbf{z}))$$
+            $$\text{Reparameterization Trick: } \mathbf{z} = \boldsymbol{\mu} + \boldsymbol{\sigma} \odot \boldsymbol{\epsilon}, \quad \boldsymbol{\epsilon} \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$$
+          </div>
+
+          <div class="layer-pipeline">
+            <div class="layer-node">
+              <div class="layer-name"><span>📥</span> Input Pair $[\mathbf{x}, \mathbf{y}_{\text{one-hot}}]$</div>
+              <div class="layer-shape">[784 + 10 = 794]</div>
+            </div>
+            <div class="layer-node">
+              <div class="layer-name"><span>🧩</span> Encoder Dense (128, ReLU)</div>
+              <div class="layer-shape">[128]</div>
+            </div>
+            <div class="layer-node">
+              <div class="layer-name"><span>🎯</span> Latent Distributions $[\boldsymbol{\mu}, \log\boldsymbol{\sigma}^2]$</div>
+              <div class="layer-shape">[2D Latent Vector $\mathbf{z}$]</div>
+            </div>
+            <div class="layer-node">
+              <div class="layer-name"><span>🎲</span> Reparameterization Sampling</div>
+              <div class="layer-shape">$\mathbf{z} \sim q_\phi(\mathbf{z}|\mathbf{x},y)$</div>
+            </div>
+            <div class="layer-node">
+              <div class="layer-name"><span>🧩</span> Decoder Dense $([\mathbf{z}, \mathbf{y}] \to 128 \to 256)$</div>
+              <div class="layer-shape">[12 $\to$ 256]</div>
+            </div>
+            <div class="layer-node">
+              <div class="layer-name"><span>🖼️</span> Output Reconstruction (Sigmoid)</div>
+              <div class="layer-shape">[28, 28] Normalized</div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </main>
+
+    <!-- =========================================================================
+         TAB 4: LIVE IN-BROWSER TRAINER & SIMULATOR
+         ========================================================================= -->
+    <main class="tab-content" id="tab-trainer">
+      <div class="classifier-grid">
+        <section class="glass-panel">
+          <div class="panel-header">
+            <div class="panel-title">
+              <div class="icon-badge">🚀</div>
+              <h2>In-Browser WebGL Deep Learning Engine</h2>
+            </div>
+            <span class="badge-pill">TensorFlow.js WebGL</span>
+          </div>
+
+          <p style="font-size: 0.85rem; color: var(--text-secondary);">
+            Fine-tune or train the neural network live inside your browser with backpropagation, dynamic learning rate decay, and real-time loss tracking.
+          </p>
+
+          <div style="display: flex; flex-direction: column; gap: 1rem; margin-top: 0.5rem;">
+            <div>
+              <label style="font-size: 0.8rem; color: var(--text-secondary);">Training Epochs:</label>
+              <input type="range" id="trainer-epochs" min="5" max="50" value="20" style="width: 100%; accent-color: var(--primary);">
+              <span id="trainer-epochs-val" style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--primary-light);">20 Epochs</span>
+            </div>
+
+            <div>
+              <label style="font-size: 0.8rem; color: var(--text-secondary);">Learning Rate (Adam):</label>
+              <input type="range" id="trainer-lr" min="0.0005" max="0.01" step="0.0005" value="0.002" style="width: 100%; accent-color: var(--secondary);">
+              <span id="trainer-lr-val" style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--secondary);">0.002</span>
+            </div>
+
+            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+              <button class="btn-primary" id="btn-start-training" style="flex: 1;">
+                <span>⚡</span> Start Training
+              </button>
+              <button class="btn-secondary" id="btn-reset-weights">
+                <span>🔄</span> Reset Weights
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Training Progress Monitor -->
+        <section class="glass-panel">
+          <div class="panel-header">
+            <div class="panel-title">
+              <div class="icon-badge">📈</div>
+              <h2>Loss & Accuracy Curves</h2>
+            </div>
+            <span class="badge-pill" id="training-progress-status">Idle</span>
+          </div>
+
+          <div style="width: 100%; height: 260px; background: #000; border-radius: var(--radius-md); border: 1px solid var(--border-subtle); overflow: hidden;">
+            <canvas id="training-chart-canvas" style="width: 100%; height: 100%;"></canvas>
+          </div>
+
+          <div style="display: flex; justify-content: space-around; font-family: var(--font-mono); font-size: 0.85rem; padding-top: 0.5rem;">
+            <div>Current Loss: <span id="metric-loss" style="color: var(--accent); font-weight: 700;">-</span></div>
+            <div>Accuracy: <span id="metric-acc" style="color: var(--success); font-weight: 700;">-</span></div>
+            <div>Time: <span id="metric-time" style="color: var(--secondary); font-weight: 700;">-</span></div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- Toast Notification System -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- App Entry Script -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
